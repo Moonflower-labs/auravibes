@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import Header from '../components/header';
 import Footer from '../components/footer';
+import TrackCard from '../components/trackcard';
+// import Waveform from '../components/waveform';
 import { fetchSongs, type Track } from './utils';
 
 const moods = ['chill', 'hype', 'gloomy', 'happy', 'anger', 'sad'] as const;
@@ -18,6 +20,7 @@ const moodStyles = {
 function App() {
   const [mood, setMood] = useState<typeof moods[number] | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
 
   useEffect(() => {
     if (mood) {
@@ -27,54 +30,87 @@ function App() {
     }
   }, [mood]);
 
+  const playTrack = (trackId: string) => {
+    if (playingTrackId && playingTrackId !== trackId) {
+      const prevAudio = document.getElementById(playingTrackId) as HTMLAudioElement;
+      if (prevAudio) {
+        prevAudio.pause();
+        prevAudio.currentTime = 0; // Reset the previous track
+      }
+    }
+    const newAudio = document.getElementById(trackId) as HTMLAudioElement;
+    if (newAudio) {
+      setPlayingTrackId(trackId);
+      setTimeout(() => newAudio.play(), 0); // Delay to ensure the audio is ready
+    } else {
+      console.error('Audio element not found for trackId:', trackId);
+    }
+  };
+
+  useEffect(() => {
+    if (playingTrackId) {
+      const audioElement = document.getElementById(playingTrackId) as HTMLAudioElement;
+      if (audioElement) {
+        audioElement.play().catch((error) => console.error('Error auto-playing audio:', error));
+      }
+    }
+  }, [playingTrackId]);
+
+  const stopTrack = () => setPlayingTrackId(null);
+
   const currentMood = mood || 'chill';
   const styles = moodStyles[currentMood];
 
   return (
     <div
-      className={`${styles.color} transition-all duration-300 ease-in-out min-h-screen ${!mood ? 'flex' : ''
-        } flex-col gap-2 items-center justify-center`}
+      className={`${styles.color} transition-all duration-300 ease-in-out min-h-screen flex flex-col gap-2 items-center justify-center`}
     >
-      <Header className={styles.header} />
-      <h1 className="text-4xl text-center py-3 text-white/70">Mood Playlist Curator</h1>
-      {!mood && <div>What's your mood today?</div>}
-      <div className="flex flex-wrap gap-4 justify-center p-6">
-        {moods.map((m) => (
-          <motion.button
-            key={m}
-            onClick={() => setMood(m)}
-            whileHover={{ scale: 1.1 }}
-            className={`${styles.btn} px-4 py-2 rounded-md cursor-pointer ${mood === m ? 'border-2 border-white/75' : ''
-              } transition-all duration-300`}
-          >
-            {m}
-          </motion.button>
-        ))}
-      </div>
-      <section>
-        {tracks.length > 0 && (
-          <div className="grid gap-4 justify-center items-center grid-cols-1 md:grid-cols-2 lg:grid-cols-3 pb-6">
-            {tracks.map((track: Track) => (
-              <div
-                key={track.id}
-                className={`flex flex-col items-center p-4 rounded-lg shadow w-96 h-[26rem] overflow-hidden mx-auto ${moodStyles[currentMood].card
-                  } transition-all duration-300`}
+      {/* Main content with flex-grow to push Footer */}
+      <div className="flex-grow w-full flex flex-col items-center gap-2">
+        <Header className={styles.header} />
+        <h1 className="text-4xl text-center py-3 text-white/70">Mood Playlist Curator</h1>
+        {!mood && <div>What's your mood today?</div>}
+        <div className="flex flex-wrap gap-4 justify-center p-6">
+          {moods.map((m) => (
+            <button
+              key={m}
+              onClick={() => setMood(m)}
+              className={`${styles.btn} px-4 py-2 w-26 rounded-md cursor-pointer hover:scale-110 ${mood === m ? 'border-2 border-white/75' : ''} transition-all duration-300`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <section className="flex-grow w-full flex flex-col items-center">
+          <AnimatePresence mode="wait">
+            {tracks.length > 0 && (
+              <motion.div
+                key={mood}
+                className="grid gap-4 justify-center items-center grid-cols-1 md:grid-cols-2 lg:grid-cols-3 pb-6 mx-4"
+                initial="hidden"
+                animate="visible"
+                exit="hidden"
+                variants={{
+                  hidden: { opacity: 0 },
+                  visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+                }}
               >
-                <img
-                  src={track.album_image}
-                  alt={track.album_name}
-                  className="w-32 h-32 rounded my-6 object-cover"
-                />
-                <h2 className="text-xl font-bold truncate w-full text-center">{track.album_name}</h2>
-                <p className="text-gray-600 truncate w-full text-center">{track.album}</p>
-                <p className="text-gray-600 truncate w-full text-center">{track.artist_name}</p>
-                <p className="truncate w-full text-center">{track.name}</p>
-                <audio controls src={track.audio} className="w-full mt-auto" />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+                {tracks.map((track) => (
+                  <TrackCard
+                    key={track.id}
+                    track={track}
+                    moodStyles={moodStyles}
+                    currentMood={currentMood}
+                    isPlaying={playingTrackId === track.id}
+                    playTrack={playTrack}
+                    stopTrack={stopTrack}
+                  />
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      </div>
       <Footer />
     </div>
   );
